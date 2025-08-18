@@ -37,6 +37,13 @@ app.MapGet("/healthz", () => Results.Ok("healthy"));
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.Use(async (ctx, next) =>
+{
+    app.Logger.LogInformation("REQ {method} {path}", ctx.Request.Method, ctx.Request.Path);
+    await next();
+    app.Logger.LogInformation("RES {status}", ctx.Response.StatusCode);
+});
+
 app.MapControllers();
 
 app.Run();

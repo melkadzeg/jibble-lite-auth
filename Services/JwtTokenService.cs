@@ -12,7 +12,7 @@ public sealed class JwtTokenService(IOptions<JwtOptions> opts)
 {
     private readonly JwtOptions _opt = opts.Value;
 
-    public string Issue(string userId, string tenantId)
+    public string Issue(string userId, string clientId)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_opt.Key));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -21,7 +21,7 @@ public sealed class JwtTokenService(IOptions<JwtOptions> opts)
         {
             new Claim(JwtRegisteredClaimNames.Sub, userId),
             new Claim(ClaimTypes.NameIdentifier, userId), // add this
-            new Claim("tenantId", tenantId)
+            new Claim("clientId", clientId)
         };
 
         var token = new JwtSecurityToken(

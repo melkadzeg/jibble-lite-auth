@@ -12,7 +12,7 @@ namespace AuthService.Controllers;
 public class AuthController(IJwtTokenService tokens) : ControllerBase
 {
     // super-simple in-memory users store for Day 1
-    private static readonly Dictionary<string,(string Password,string TenantId)> _users =
+    private static readonly Dictionary<string,(string Password,string ClientId)> _users =
         new(StringComparer.OrdinalIgnoreCase);
 
     [HttpPost("register")]
@@ -20,14 +20,14 @@ public class AuthController(IJwtTokenService tokens) : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(dto.Email) ||
             string.IsNullOrWhiteSpace(dto.Password) ||
-            string.IsNullOrWhiteSpace(dto.TenantId))
-            return BadRequest("email, password, tenantId required");
+            string.IsNullOrWhiteSpace(dto.ClientId))
+            return BadRequest("email, password, clientId required");
 
         if (_users.ContainsKey(dto.Email))
             return Conflict("user exists");
 
-        _users[dto.Email] = (dto.Password, dto.TenantId);
-        return Created($"/users/{dto.Email}", new { dto.Email, dto.TenantId });
+        _users[dto.Email] = (dto.Password, dto.ClientId);
+        return Created($"/users/{dto.Email}", new { dto.Email, dto.ClientId });
     }
 
     [HttpPost("login")]
@@ -36,7 +36,7 @@ public class AuthController(IJwtTokenService tokens) : ControllerBase
         if (!_users.TryGetValue(dto.Email, out var rec) || rec.Password != dto.Password)
             return Unauthorized();
 
-        var jwt = tokens.Issue(dto.Email, rec.TenantId);
+        var jwt = tokens.Issue(dto.Email, rec.ClientId);
         return Ok(new { access_token = jwt });
     }
 
@@ -48,8 +48,8 @@ public class AuthController(IJwtTokenService tokens) : ControllerBase
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ??
                      User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
         
-        var tenantId = User.FindFirst("tenantId")?.Value;
+        var clientId = User.FindFirst("clientId")?.Value;
 
-        return Ok(new { via = "auth-service", userId, tenantId });
+        return Ok(new { via = "auth-service", userId, clientId });
     }
 }
