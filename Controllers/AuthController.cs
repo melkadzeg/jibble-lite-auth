@@ -12,7 +12,7 @@ namespace AuthService.Controllers;
 public class AuthController(IJwtTokenService tokens) : ControllerBase
 {
     // super-simple in-memory users store for Day 1
-    private static readonly Dictionary<string,(string Password,string ClientId)> _users =
+    private static readonly Dictionary<string,(string Password,string CompanyId)> _users =
         new(StringComparer.OrdinalIgnoreCase);
 
     [HttpPost("register")]
@@ -20,14 +20,14 @@ public class AuthController(IJwtTokenService tokens) : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(dto.Email) ||
             string.IsNullOrWhiteSpace(dto.Password) ||
-            string.IsNullOrWhiteSpace(dto.ClientId))
-            return BadRequest("email, password, clientId required");
+            string.IsNullOrWhiteSpace(dto.CompanyId))
+            return BadRequest("email, password, companyId required");
 
         if (_users.ContainsKey(dto.Email))
             return Conflict("user exists");
 
-        _users[dto.Email] = (dto.Password, dto.ClientId);
-        return Created($"/users/{dto.Email}", new { dto.Email, dto.ClientId });
+        _users[dto.Email] = (dto.Password, dto.CompanyId);
+        return Created($"/users/{dto.Email}", new { dto.Email, dto.CompanyId });
     }
 
     [HttpPost("login")]
@@ -36,7 +36,7 @@ public class AuthController(IJwtTokenService tokens) : ControllerBase
         if (!_users.TryGetValue(dto.Email, out var rec) || rec.Password != dto.Password)
             return Unauthorized();
 
-        var jwt = tokens.Issue(dto.Email, rec.ClientId);
+        var jwt = tokens.Issue(dto.Email, rec.CompanyId);
         return Ok(new { access_token = jwt });
     }
 
@@ -48,8 +48,8 @@ public class AuthController(IJwtTokenService tokens) : ControllerBase
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ??
                      User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
         
-        var clientId = User.FindFirst("clientId")?.Value;
+        var companyId = User.FindFirst("companyId")?.Value;
 
-        return Ok(new { via = "auth-service", userId, clientId });
+        return Ok(new { via = "auth-service", userId, companyId });
     }
 }
