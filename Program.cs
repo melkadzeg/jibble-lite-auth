@@ -1,49 +1,59 @@
-using AuthService.Options;
+using System.Text;
+using AuthService.Data;
+using AuthService.Repositories;
 using AuthService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
-builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
+builder.Services.AddDbContext<AuthDbContext>(opt =>
+    opt.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
-// Add JWT Authentication for the whoami endpoint
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+builder.Services.AddSingleton<ITokenService, TokenService>();
+
+builder.Services.AddControllers();
+
+// JWT bearer (symmetric)
+var jwt = builder.Configuration.GetSection("Jwt");
+var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt["Key"]!));
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(o =>
     {
-        var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>();
-        options.TokenValidationParameters = new TokenValidationParameters
+        o.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtOptions?.Issuer,
-            ValidAudience = jwtOptions?.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions?.Key ?? ""))
+            ValidIssuer = jwt["Issuer"],
+            ValidAudience = jwt["Audience"],
+            IssuerSigningKey = signingKey,
+            ClockSkew = TimeSpan.Zero
         };
     });
 
 builder.Services.AddAuthorization();
-builder.Services.AddControllers();
 
 var app = builder.Build();
 
-app.MapGet("/ping", () => Results.Ok(new { service = "auth", status = "ok" }));
-app.MapGet("/healthz", () => Results.Ok("healthy"));
+#if DEBUG
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+    db.Database.Migrate();
+}
+#endif
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.Use(async (ctx, next) =>
-{
-    app.Logger.LogInformation("REQ {method} {path}", ctx.Request.Method, ctx.Request.Path);
-    await next();
-    app.Logger.LogInformation("RES {status}", ctx.Response.StatusCode);
-});
-
 app.MapControllers();
+app.MapGet("/health", () => "ok");
 
 app.Run();

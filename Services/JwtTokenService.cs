@@ -23,7 +23,7 @@ public sealed class JwtTokenService(IOptions<JwtOptions> opts)
             new Claim(ClaimTypes.NameIdentifier, userId), // add this
             new Claim("companyId", companyId)
         };
-
+        
         var token = new JwtSecurityToken(
             issuer: _opt.Issuer,
             audience: _opt.Audience,
